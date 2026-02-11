@@ -3,7 +3,8 @@
   "private": true,
   "packageManager": "pnpm@10.29.3",
   "scripts": {
-    "dev": "pnpm -r dev",
+    "dev:api": "pnpm --filter ./apps/api start:dev",
+    "dev:mobile": "pnpm --filter ./apps/mobile start",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test"
