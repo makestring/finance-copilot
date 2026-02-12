@@ -28,36 +28,48 @@ export class LeaksService {
     const ratio = saldoReal > 0 ? subsMonthly / saldoReal : 1;
 
     // =========================
-    // ALERT ENGINE MVP
+    // SETTINGS (defaults + per user)
+    // =========================
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { clientId },
+    });
+
+    const thresholdPct = settings?.subscriptionsThresholdPct ?? 10; // default 10%
+    const upcomingWindowDays = settings?.upcomingBillingWindowDays ?? 5; // default 5 dias
+    const thresholdRatio = thresholdPct / 100;
+
+    // =========================
+    // ALERT ENGINE (configurable)
     // =========================
     const alerts: any[] = [];
 
-    // 1) Peso das assinaturas vs saldo real (threshold fixo por enquanto)
-    const THRESHOLD = 0.10; // 10%
-    if (ratio >= THRESHOLD) {
+    // 1) Peso das assinaturas vs saldo real
+    if (ratio >= thresholdRatio) {
       alerts.push({
         type: "HIGH_SUBSCRIPTION_WEIGHT",
         severity: "warning",
         ratio,
-        message: `Suas assinaturas consomem ${(ratio * 100).toFixed(1)}% do seu saldo real.`,
+        thresholdPct,
+        message: `Suas assinaturas consomem ${(ratio * 100).toFixed(
+          1,
+        )}% do seu saldo real (limite: ${thresholdPct}%).`,
       });
     }
 
-    // 2) Cobranças próximas (janela de 5 dias)
+    // 2) Cobranças próximas (janela configurável)
     const today = new Date();
     const todayDay = today.getDate();
-    const UPCOMING_WINDOW_DAYS = 5;
 
     const upcoming = subs.filter((s) => {
       const diff = s.billingDay - todayDay;
-      return diff >= 0 && diff <= UPCOMING_WINDOW_DAYS;
+      return diff >= 0 && diff <= upcomingWindowDays;
     });
 
     if (upcoming.length > 0) {
       alerts.push({
         type: "UPCOMING_BILLING",
         severity: "info",
-        message: `Você tem cobranças de assinatura nos próximos ${UPCOMING_WINDOW_DAYS} dias.`,
+        message: `Você tem cobranças de assinatura nos próximos ${upcomingWindowDays} dias.`,
         items: upcoming.map((s) => ({
           name: s.name,
           amountCents: s.amountCents,
@@ -82,6 +94,10 @@ export class LeaksService {
       context: {
         saldoRealCents: saldoReal,
         subscriptionsToSaldoRatio: ratio,
+        settings: {
+          subscriptionsThresholdPct: thresholdPct,
+          upcomingBillingWindowDays: upcomingWindowDays,
+        },
       },
       alerts,
     };
