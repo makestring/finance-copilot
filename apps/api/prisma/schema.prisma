@@ -11,20 +11,21 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  profile   FinancialProfile?
+  profile       FinancialProfile?
+  subscriptions Subscription[]
 }
 
 model FinancialProfile {
-  id           String   @id @default(uuid())
-  clientId     String   @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(uuid())
+  clientId  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   monthlyIncomeCents Int
-  cardLimitCents     Int?   // opcional no MVP
-  cardDueDay         Int?   // opcional no MVP
+  cardLimitCents     Int? // opcional no MVP
+  cardDueDay         Int? // opcional no MVP
 
-  fixedExpenses      FixedExpense[]
+  fixedExpenses FixedExpense[]
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
@@ -33,11 +34,27 @@ model FixedExpense {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  name      String
+  name        String
   amountCents Int
 
   profileId String
   profile   FinancialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([profileId])
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clientId    String
+  name        String
+  amountCents Int
+  billingDay  Int // 1..31
+  isActive    Boolean @default(true)
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }
