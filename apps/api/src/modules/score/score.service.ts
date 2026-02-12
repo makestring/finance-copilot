@@ -175,6 +175,58 @@ export class ScoreService {
       saldoReal,
     });
   }
+  async createSnapshot(clientId: string) {
+    // Reusa o cálculo atual do score
+    const result = await this.getMonthlyScore(clientId);
+
+    const value = result.score.value;
+    const level = result.score.level;
+
+    const snapshot = await this.prisma.scoreSnapshot.create({
+      data: {
+        clientId,
+        score: value,
+        level,
+        drivers: result.drivers as any,
+        context: result.context as any,
+      },
+    });
+
+    return { ok: true, snapshot };
+  }
+
+  async getTrend(clientId: string, days: number) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const items = await this.prisma.scoreSnapshot.findMany({
+      where: {
+        clientId,
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        createdAt: true,
+        score: true,
+        level: true,
+        // para trend não precisa trazer json pesado toda vez
+      },
+    });
+
+    const first = items[0]?.score ?? null;
+    const last = items[items.length - 1]?.score ?? null;
+
+    const delta = first !== null && last !== null ? last - first : null;
+
+    return {
+      ok: true,
+      trend: {
+        days,
+        points: items,
+        delta,
+      },
+    };
+  }
 
   private format(
     score: number,

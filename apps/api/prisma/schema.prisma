@@ -11,8 +11,10 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  profile       FinancialProfile?
-  subscriptions Subscription[]
+  profile        FinancialProfile?
+  subscriptions  Subscription[]
+  settings       UserSettings?
+  scoreSnapshots ScoreSnapshot[]
 }
 
 model FinancialProfile {
@@ -57,4 +59,33 @@ model Subscription {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+}
+
+model UserSettings {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clientId                  String @unique
+  subscriptionsThresholdPct Int    @default(10) // 10 = 10%
+  upcomingBillingWindowDays Int    @default(5) // 5 dias
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ScoreSnapshot {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  clientId String
+  score    Int
+  level    String
+
+  // Guardar “por que” o score foi assim (útil p/ trend explicável)
+  drivers Json
+  context Json
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
 }
