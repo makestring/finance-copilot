@@ -29,12 +29,21 @@ export class ScoreService {
 
     const subs = await this.prisma.subscription.findMany({
       where: { clientId, isActive: true },
+      orderBy: [{ amountCents: "desc" }],
     });
     const subsMonthly = subs.reduce((s, x) => s + x.amountCents, 0);
+
+    // SETTINGS (defaults + per user)
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { clientId },
+    });
+    const thresholdPct = settings?.subscriptionsThresholdPct ?? 10;
+    const upcomingWindowDays = settings?.upcomingBillingWindowDays ?? 5;
 
     // ratios
     const fixedRatio = income > 0 ? fixedTotal / income : 1;
     const subsRatio = saldoReal > 0 ? subsMonthly / saldoReal : 1;
+    const thresholdRatio = thresholdPct / 100;
 
     const drivers: Driver[] = [];
 
@@ -51,7 +60,12 @@ export class ScoreService {
         impact: "negative",
         details: "Seu saldo real estimado está zero ou negativo.",
       });
-      return this.format(score, drivers, { income, fixedTotal, subsMonthly, saldoReal, fixedRatio, subsRatio });
+      return this.format(score, drivers, {
+        income,
+        fixedTotal,
+        subsMonthly,
+        saldoReal,
+      });
     } else {
       drivers.push({
         key: "saldo_real",
@@ -62,7 +76,7 @@ export class ScoreService {
       });
     }
 
-    // A) fixedRatio penalties
+    // A) fixedRatio penalties (mantém o que já funcionou)
     if (fixedRatio <= 0.5) {
       drivers.push({
         key: "fixed_ratio",
@@ -91,23 +105,30 @@ export class ScoreService {
       });
     }
 
-    // B) subsRatio penalties
-    if (subsRatio <= 0.1) {
+    // B) subsRatio penalties (AGORA baseado em settings)
+    // Regras:
+    // - <= thresholdPct: ok
+    // - <= 2x thresholdPct: atenção
+    // - > 2x thresholdPct: ruim
+    const pctUsed = subsRatio * 100;
+    const warnBoundary = thresholdRatio * 2;
+
+    if (subsRatio <= thresholdRatio) {
       drivers.push({
         key: "subs_ratio",
         label: "Assinaturas vs saldo real",
         value: subsRatio,
         impact: "positive",
-        details: `Assinaturas consomem ${(subsRatio * 100).toFixed(1)}% do seu saldo real.`,
+        details: `Assinaturas consomem ${pctUsed.toFixed(1)}% do seu saldo real (limite: ${thresholdPct}%).`,
       });
-    } else if (subsRatio <= 0.2) {
+    } else if (subsRatio <= warnBoundary) {
       score -= 10;
       drivers.push({
         key: "subs_ratio",
         label: "Assinaturas vs saldo real",
         value: subsRatio,
         impact: "neutral",
-        details: `Assinaturas consomem ${(subsRatio * 100).toFixed(1)}% do seu saldo real (atenção).`,
+        details: `Assinaturas consomem ${pctUsed.toFixed(1)}% do seu saldo real (acima do seu limite de ${thresholdPct}%).`,
       });
     } else {
       score -= 20;
@@ -116,14 +137,43 @@ export class ScoreService {
         label: "Assinaturas vs saldo real",
         value: subsRatio,
         impact: "negative",
-        details: `Assinaturas consomem ${(subsRatio * 100).toFixed(1)}% do seu saldo real (alto).`,
+        details: `Assinaturas consomem ${pctUsed.toFixed(1)}% do seu saldo real (bem acima do seu limite de ${thresholdPct}%).`,
+      });
+    }
+
+    // C) Penalidade leve baseada em ALERTAS (cobranças próximas)
+    // Recalcula o mesmo "UPCOMING_BILLING" aqui, usando upcomingWindowDays do settings
+    const today = new Date();
+    const todayDay = today.getDate();
+
+    const upcoming = subs.filter((s) => {
+      const diff = s.billingDay - todayDay;
+      return diff >= 0 && diff <= upcomingWindowDays;
+    });
+
+    if (upcoming.length > 0) {
+      // penalidade pequena: 2 pontos por cobrança próxima (cap 10)
+      const penalty = Math.min(10, upcoming.length * 2);
+      score -= penalty;
+
+      drivers.push({
+        key: "upcoming_billing",
+        label: "Cobranças próximas",
+        value: upcoming.length,
+        impact: "neutral",
+        details: `Você tem ${upcoming.length} cobrança(s) chegando nos próximos ${upcomingWindowDays} dias (penalidade leve de ${penalty} pts).`,
       });
     }
 
     // clamp
     score = Math.max(0, Math.min(100, score));
 
-    return this.format(score, drivers, { income, fixedTotal, subsMonthly, saldoReal, fixedRatio, subsRatio });
+    return this.format(score, drivers, {
+      income,
+      fixedTotal,
+      subsMonthly,
+      saldoReal,
+    });
   }
 
   private format(
@@ -134,8 +184,6 @@ export class ScoreService {
       fixedTotal: number;
       subsMonthly: number;
       saldoReal: number;
-      fixedRatio: number;
-      subsRatio: number;
     },
   ) {
     const level = score >= 75 ? "GREEN" : score >= 50 ? "YELLOW" : "RED";
