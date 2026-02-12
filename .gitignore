@@ -1,0 +1,18 @@
+# env files
+.env
+.env.local
+.env.development
+.env.production
+
+# dependencies
+node_modules/
+
+# macOS
+.DS_Store
+
+# build
+dist/
+build/
+
+# logs
+*.log
