@@ -228,6 +228,108 @@ export class ScoreService {
     };
   }
 
+  async getSuggestions(clientId: string) {
+    const base = await this.getMonthlyScore(clientId);
+
+    // pegar settings atuais
+    const settings = await this.prisma.userSettings.findUnique({ where: { clientId } });
+    const currentThreshold = settings?.subscriptionsThresholdPct ?? 10;
+
+    // contexto atual
+    const saldoReal = base.context.saldoRealCents;
+    const subsCents = base.context.subscriptionsCents;
+    const fixedCents = base.context.fixedExpensesCents;
+    const incomeCents = base.context.monthlyIncomeCents;
+
+    // helper de simulação: recalcula score a partir de inputs simulados
+    const simulate = async (opts: {
+      thresholdPct?: number;
+      subsCents?: number;
+      fixedCents?: number;
+    }) => {
+      const thresholdPctSim = opts.thresholdPct ?? currentThreshold;
+      const subsSim = opts.subsCents ?? subsCents;
+      const fixedSim = opts.fixedCents ?? fixedCents;
+
+      const saldoSim = incomeCents - fixedSim;
+      const fixedRatio = incomeCents > 0 ? fixedSim / incomeCents : 1;
+      const subsRatio = saldoSim > 0 ? subsSim / saldoSim : 1;
+      const thresholdRatio = thresholdPctSim / 100;
+      const warnBoundary = thresholdRatio * 2;
+
+      let score = 100;
+
+      if (saldoSim <= 0) return 25;
+
+      // fixed ratio penalty
+      if (fixedRatio > 0.7) score -= 35;
+      else if (fixedRatio > 0.5) score -= 15;
+
+      // subs ratio penalty based on threshold
+      if (subsRatio > warnBoundary) score -= 20;
+      else if (subsRatio > thresholdRatio) score -= 10;
+
+      // não simulamos upcoming billing aqui (é evento temporal), então ignoramos
+      return Math.max(0, Math.min(100, score));
+    };
+
+    const suggestions: any[] = [];
+
+    // 1) Ajustar threshold para o padrão (10) ou para 2% se o usuário está muito rígido
+    if (currentThreshold < 5) {
+      const newScore = await simulate({ thresholdPct: 2 });
+      const delta = newScore - base.score.value;
+
+      suggestions.push({
+        key: "adjust_threshold",
+        title: "Ajustar seu limite de assinaturas",
+        action: "Mudar subscriptionsThresholdPct para 2%",
+        estimatedScoreDelta: delta,
+        explanation: "Seu limite está muito rígido e isso derruba o score mesmo com assinaturas baixas.",
+      });
+    }
+
+    // 2) Reduzir assinaturas (simula cortar 20% do total ou R$ 10)
+    const cutSubs = Math.min(subsCents, Math.max(1000, Math.floor(subsCents * 0.2)));
+    if (subsCents > 0) {
+      const newScore = await simulate({ subsCents: subsCents - cutSubs });
+      const delta = newScore - base.score.value;
+
+      suggestions.push({
+        key: "reduce_subscriptions",
+        title: "Reduzir assinaturas",
+        action: `Cortar ~R$ ${(cutSubs / 100).toFixed(2)}/mês em assinaturas`,
+        estimatedScoreDelta: delta,
+        explanation: "Cortar uma assinatura ou trocar por plano mais barato melhora seu score.",
+      });
+    }
+
+    // 3) Reduzir gastos fixos (simula cortar 5% ou R$ 50)
+    const cutFixed = Math.min(fixedCents, Math.max(5000, Math.floor(fixedCents * 0.05)));
+    if (fixedCents > 0) {
+      const newScore = await simulate({ fixedCents: fixedCents - cutFixed });
+      const delta = newScore - base.score.value;
+
+      suggestions.push({
+        key: "reduce_fixed",
+        title: "Reduzir gastos fixos",
+        action: `Cortar ~R$ ${(cutFixed / 100).toFixed(2)}/mês em gastos fixos`,
+        estimatedScoreDelta: delta,
+        explanation: "Gastos fixos menores aumentam seu saldo real e melhoram seu score.",
+      });
+    }
+
+    // ordena por maior ganho
+    suggestions.sort((a, b) => (b.estimatedScoreDelta ?? 0) - (a.estimatedScoreDelta ?? 0));
+
+    return {
+      ok: true,
+      baseScore: base.score,
+      suggestions,
+    };
+  }
+
+
   private format(
     score: number,
     drivers: Driver[],

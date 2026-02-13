@@ -29,4 +29,11 @@ export class ScoreController {
 
     return this.service.getTrend(clientId, safeDays);
   }
+
+  @Get("suggestions")
+  async suggestions(@Headers("x-client-id") clientId: string) {
+    if (!clientId) throw new BadRequestException("Missing x-client-id header");
+    return this.service.getSuggestions(clientId);
+  }
+  
 }
