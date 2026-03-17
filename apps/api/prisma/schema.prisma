@@ -15,6 +15,7 @@ model Client {
   subscriptions  Subscription[]
   settings       UserSettings?
   scoreSnapshots ScoreSnapshot[]
+  cancelIntents  CancelIntent[]
 }
 
 model FinancialProfile {
@@ -56,7 +57,8 @@ model Subscription {
   billingDay  Int // 1..31
   isActive    Boolean @default(true)
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  cancelIntents CancelIntent[]
 
   @@index([clientId])
 }
@@ -88,4 +90,49 @@ model ScoreSnapshot {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId, createdAt])
+}
+
+model CancelIntent {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  clientId       String
+  subscriptionId String
+  reason         String?
+
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@index([subscriptionId])
+}
+
+model ActionLog {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  clientId String
+  type     String
+  payload  Json?
+
+  @@index([clientId, createdAt])
+}
+
+model Alert {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clientId String
+  type     String
+  severity String // "info" | "warning" | "danger"
+  title    String
+  message  String
+  isActive Boolean @default(true)
+
+  // opcional: para guardar itens (ex: lista de assinaturas) ou metadados
+  payload Json?
+
+  @@index([clientId, isActive])
+  @@index([clientId, type])
 }

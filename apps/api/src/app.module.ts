@@ -6,11 +6,13 @@ import { SubscriptionsModule } from "./modules/subscriptions/subscriptions.modul
 import { LeaksModule } from "./modules/leaks/leaks.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { ScoreModule } from "./modules/score/score.module";
-
-
+import { CancelIntentsModule } from './modules/cancel-intents/cancel-intents.module';
+import { InsightsModule } from './modules/insights/insights.module';
+import { ActionsModule } from "./modules/actions/actions.module";
+import { AlertsModule } from "./modules/alerts/alerts.module";
 
 
 @Module({
-  imports: [PrismaModule, OnboardingModule, SnapshotModule, SubscriptionsModule, LeaksModule, SettingsModule, ScoreModule],
+  imports: [PrismaModule, OnboardingModule, SnapshotModule, SubscriptionsModule, LeaksModule, SettingsModule, ScoreModule, CancelIntentsModule, InsightsModule, ActionsModule, AlertsModule],
 })
 export class AppModule {}

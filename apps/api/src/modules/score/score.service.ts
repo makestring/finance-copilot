@@ -1,13 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../shared/infrastructure/prisma/prisma.service";
-
-type Driver = {
-  key: string;
-  label: string;
-  value: number;
-  impact: "positive" | "neutral" | "negative";
-  details?: string;
-};
+import { ScoreEngine, Driver as EngineDriver } from "./score.engine";
 
 @Injectable()
 export class ScoreService {
@@ -23,141 +16,51 @@ export class ScoreService {
       throw new NotFoundException("Profile not found. POST /onboarding/profile first.");
     }
 
-    const income = profile.monthlyIncomeCents;
-    const fixedTotal = profile.fixedExpenses.reduce((s, e) => s + e.amountCents, 0);
-    const saldoReal = income - fixedTotal;
+    const incomeCents = profile.monthlyIncomeCents;
+    const fixedCents = profile.fixedExpenses.reduce((s, e) => s + e.amountCents, 0);
 
     const subs = await this.prisma.subscription.findMany({
       where: { clientId, isActive: true },
       orderBy: [{ amountCents: "desc" }],
     });
-    const subsMonthly = subs.reduce((s, x) => s + x.amountCents, 0);
+    const subsCents = subs.reduce((s, x) => s + x.amountCents, 0);
 
-    const settings = await this.prisma.userSettings.findUnique({
-      where: { clientId },
-    });
-
+    const settings = await this.prisma.userSettings.findUnique({ where: { clientId } });
     const thresholdPct = settings?.subscriptionsThresholdPct ?? 10;
     const upcomingWindowDays = settings?.upcomingBillingWindowDays ?? 5;
 
-    const fixedRatio = income > 0 ? fixedTotal / income : 1;
-    const subsRatio = saldoReal > 0 ? subsMonthly / saldoReal : 1;
-    const thresholdRatio = thresholdPct / 100;
-
-    const drivers: Driver[] = [];
-    let score = 100;
-
-    if (saldoReal <= 0) {
-      score = 25;
-      drivers.push({
-        key: "saldo_real",
-        label: "Saldo real",
-        value: saldoReal,
-        impact: "negative",
-        details: "Seu saldo real estimado está zero ou negativo.",
-      });
-      return this.format(score, drivers, {
-        income,
-        fixedTotal,
-        subsMonthly,
-        saldoReal,
-      });
-    }
-
-    drivers.push({
-      key: "saldo_real",
-      label: "Saldo real",
-      value: saldoReal,
-      impact: "positive",
-      details: "Você tem saldo real positivo após gastos fixos.",
-    });
-
-    if (fixedRatio <= 0.5) {
-      drivers.push({
-        key: "fixed_ratio",
-        label: "Gastos fixos vs renda",
-        value: fixedRatio,
-        impact: "positive",
-        details: `Gastos fixos estão em ${(fixedRatio * 100).toFixed(1)}% da sua renda.`,
-      });
-    } else if (fixedRatio <= 0.7) {
-      score -= 15;
-      drivers.push({
-        key: "fixed_ratio",
-        label: "Gastos fixos vs renda",
-        value: fixedRatio,
-        impact: "neutral",
-        details: `Gastos fixos estão em ${(fixedRatio * 100).toFixed(1)}% da sua renda (atenção).`,
-      });
-    } else {
-      score -= 35;
-      drivers.push({
-        key: "fixed_ratio",
-        label: "Gastos fixos vs renda",
-        value: fixedRatio,
-        impact: "negative",
-        details: `Gastos fixos estão em ${(fixedRatio * 100).toFixed(1)}% da sua renda (alto).`,
-      });
-    }
-
-    const pctUsed = subsRatio * 100;
-    const warnBoundary = thresholdRatio * 2;
-
-    if (subsRatio <= thresholdRatio) {
-      drivers.push({
-        key: "subs_ratio",
-        label: "Assinaturas vs saldo real",
-        value: subsRatio,
-        impact: "positive",
-        details: `Assinaturas consomem ${pctUsed.toFixed(1)}% do seu saldo real (limite: ${thresholdPct}%).`,
-      });
-    } else if (subsRatio <= warnBoundary) {
-      score -= 10;
-      drivers.push({
-        key: "subs_ratio",
-        label: "Assinaturas vs saldo real",
-        value: subsRatio,
-        impact: "neutral",
-        details: `Assinaturas consomem ${pctUsed.toFixed(1)}% do seu saldo real (acima do seu limite de ${thresholdPct}%).`,
-      });
-    } else {
-      score -= 20;
-      drivers.push({
-        key: "subs_ratio",
-        label: "Assinaturas vs saldo real",
-        value: subsRatio,
-        impact: "negative",
-        details: `Assinaturas consomem ${pctUsed.toFixed(1)}% do seu saldo real (bem acima do seu limite de ${thresholdPct}%).`,
-      });
-    }
-
+    // Upcoming billing count (mesma regra que antes)
     const todayDay = new Date().getDate();
-    const upcoming = subs.filter((s) => {
+    const upcomingCount = subs.filter((s) => {
       const diff = s.billingDay - todayDay;
       return diff >= 0 && diff <= upcomingWindowDays;
+    }).length;
+
+    const out = ScoreEngine.compute({
+      incomeCents,
+      fixedCents,
+      subsCents,
+      thresholdPct,
+      upcomingCount,
+      upcomingWindowDays,
     });
 
-    if (upcoming.length > 0) {
-      const penalty = Math.min(10, upcoming.length * 2);
-      score -= penalty;
+    const saldoRealCents = incomeCents - fixedCents;
 
-      drivers.push({
-        key: "upcoming_billing",
-        label: "Cobranças próximas",
-        value: upcoming.length,
-        impact: "neutral",
-        details: `Você tem ${upcoming.length} cobrança(s) chegando nos próximos ${upcomingWindowDays} dias (penalidade leve de ${penalty} pts).`,
-      });
-    }
-
-    score = Math.max(0, Math.min(100, score));
-
-    return this.format(score, drivers, {
-      income,
-      fixedTotal,
-      subsMonthly,
-      saldoReal,
-    });
+    return {
+      ok: true,
+      score: {
+        value: out.value,
+        level: out.level,
+      },
+      context: {
+        monthlyIncomeCents: incomeCents,
+        fixedExpensesCents: fixedCents,
+        subscriptionsCents: subsCents,
+        saldoRealCents,
+      },
+      drivers: out.drivers as EngineDriver[],
+    };
   }
 
   async createSnapshot(clientId: string) {
@@ -218,53 +121,154 @@ export class ScoreService {
     return { ok: true, trend: { days, points, delta } };
   }
 
-  async getSuggestions(clientId: string) {
-    const base = await this.getMonthlyScore(clientId);
+ async getSuggestions(clientId: string) {
+  // Base score (real)
+  const base = await this.getMonthlyScore(clientId);
 
-    const settings = await this.prisma.userSettings.findUnique({ where: { clientId } });
-    const currentThreshold = settings?.subscriptionsThresholdPct ?? 10;
+  // Contexto atual
+  const incomeCents = base.context.monthlyIncomeCents;
+  const fixedCents = base.context.fixedExpensesCents;
+  const subsCents = base.context.subscriptionsCents;
 
-    const subs = await this.prisma.subscription.findMany({
-      where: { clientId, isActive: true },
-      orderBy: [{ amountCents: "desc" }],
-    });
+  // Settings
+  const settings = await this.prisma.userSettings.findUnique({ where: { clientId } });
+  const thresholdPct = settings?.subscriptionsThresholdPct ?? 10;
+  const upcomingWindowDays = settings?.upcomingBillingWindowDays ?? 5;
 
-    const saldoReal = base.context.saldoRealCents;
-    const subsCents = base.context.subscriptionsCents;
-    const fixedCents = base.context.fixedExpensesCents;
-    const incomeCents = base.context.monthlyIncomeCents;
+  // Subscriptions ativas
+  const subs = await this.prisma.subscription.findMany({
+    where: { clientId, isActive: true },
+    orderBy: [{ amountCents: "desc" }],
+  });
 
-    const simulate = async (subsSim: number) => {
-      const saldoSim = incomeCents - fixedCents;
-      const subsRatio = saldoSim > 0 ? subsSim / saldoSim : 1;
-      const thresholdRatio = currentThreshold / 100;
-      const warnBoundary = thresholdRatio * 2;
+  // Simulador central (não inclui upcoming billing por ser temporal)
+  const simulate = (params: { thresholdPct?: number; subsCents?: number; fixedCents?: number }) => {
+    return ScoreEngine.compute({
+      incomeCents,
+      fixedCents: params.fixedCents ?? fixedCents,
+      subsCents: params.subsCents ?? subsCents,
+      thresholdPct: params.thresholdPct ?? thresholdPct,
+      upcomingCount: 0,
+      upcomingWindowDays,
+    }).value;
+  };
 
-      let score = 100;
+  const suggestions: any[] = [];
 
-      if (subsRatio > warnBoundary) score -= 20;
-      else if (subsRatio > thresholdRatio) score -= 10;
+  // =========================
+  // WOW: Cancelamentos planejados (CancelIntent)
+  // =========================
+  const intents = await this.prisma.cancelIntent.findMany({
+    where: { clientId },
+    include: { subscription: true },
+    orderBy: { createdAt: "desc" },
+  });
 
-      return Math.max(0, Math.min(100, score));
-    };
+  if (intents.length > 0) {
+    // evita duplicar se usuário marcou a mesma assinatura mais de uma vez
+    const seen = new Set<string>();
 
-    const suggestions: any[] = [];
+    const items: {
+      subscriptionId: string;
+      name: string;
+      amountCents: number;
+      monthlySavingsCents: number;
+      yearlySavingsCents: number;
+      estimatedScoreDelta: number;
+    }[] = [];
 
-    // -------- TOP 3 CUTS --------
-    const perSubCuts = await Promise.all(
-      subs.map(async (s) => {
-        const newScore = await simulate(subsCents - s.amountCents);
-        return {
-          name: s.name,
-          amountCents: s.amountCents,
-          estimatedScoreDelta: newScore - base.score.value,
-        };
-      }),
+    for (const it of intents) {
+      if (!it.subscription) continue;
+      if (seen.has(it.subscriptionId)) continue;
+      seen.add(it.subscriptionId);
+
+      const amount = it.subscription.amountCents;
+
+      // simula como se essa assinatura já não existisse
+      const simulatedScore = simulate({
+        subsCents: Math.max(0, subsCents - amount),
+      });
+
+      const delta = simulatedScore - base.score.value;
+
+      items.push({
+        subscriptionId: it.subscriptionId,
+        name: it.subscription.name,
+        amountCents: amount,
+        monthlySavingsCents: amount,
+        yearlySavingsCents: amount * 12,
+        estimatedScoreDelta: delta,
+      });
+    }
+
+    // ordena por maior impacto, e se empatar, maior economia
+    items.sort(
+      (a, b) => (b.estimatedScoreDelta - a.estimatedScoreDelta) || (b.amountCents - a.amountCents),
     );
+
+    const best = items[0];
+    const totalMonthly = items.reduce((s, x) => s + x.monthlySavingsCents, 0);
+
+    const projectedScoreValue = best ? Math.min(100, base.score.value + best.estimatedScoreDelta) : base.score.value;
+    const projectedScoreLevel = projectedScoreValue >= 75 ? "GREEN" : projectedScoreValue >= 50 ? "YELLOW" : "RED";
+
+
+    // coloca no TOPO = WOW
+    suggestions.unshift({
+      key: "pending_cancellations",
+      title: "Você já marcou assinaturas para cancelar",
+      action: "Confirmar cancelamento das assinaturas marcadas",
+      estimatedScoreDelta: best ? best.estimatedScoreDelta : 0,
+      projectedScoreValue,
+      projectedScoreLevel,
+      items,
+      explanation: best
+        ? `Se você confirmar agora, seu score pode subir em até +${best.estimatedScoreDelta} pts. Economia potencial total: R$ ${(totalMonthly / 100).toFixed(2)}/mês.`
+        : "Você já marcou assinaturas para cancelar. Confirmar a ação melhora seu score.",
+    });
+  }
+
+  // =========================
+  // A) Ajustar threshold (produto)
+  // =========================
+  if (thresholdPct < 5) {
+    const newScore = simulate({ thresholdPct: 2 });
+    const delta = newScore - base.score.value;
+
+    if (delta !== 0) {
+      suggestions.push({
+        key: "adjust_threshold",
+        title: "Ajustar seu limite de assinaturas",
+        action: "Mudar subscriptionsThresholdPct para 2%",
+        estimatedScoreDelta: delta,
+        explanation: "Seu limite está muito rígido e isso derruba o score mesmo com assinaturas baixas.",
+      });
+    }
+  }
+
+  // =========================
+  // B) Cortar 1 assinatura (Top 3 por impacto)
+  // =========================
+  if (subs.length > 0 && subsCents > 0) {
+    const perSubCuts = subs.map((s) => {
+      const newScore = simulate({ subsCents: Math.max(0, subsCents - s.amountCents) });
+      const delta = newScore - base.score.value;
+
+      return {
+        name: s.name,
+        amountCents: s.amountCents,
+        monthlySavingsCents: s.amountCents,
+        yearlySavingsCents: s.amountCents * 12,
+        estimatedScoreDelta: delta,
+      };
+    });
 
     const topCuts = perSubCuts
       .filter((x) => x.estimatedScoreDelta > 0)
-      .sort((a, b) => b.estimatedScoreDelta - a.estimatedScoreDelta)
+      .sort(
+        (a, b) =>
+          (b.estimatedScoreDelta - a.estimatedScoreDelta) || (b.amountCents - a.amountCents),
+      )
       .slice(0, 3);
 
     if (topCuts.length > 0) {
@@ -274,36 +278,29 @@ export class ScoreService {
         action: "Cancelar 1 assinatura",
         estimatedScoreDelta: topCuts[0].estimatedScoreDelta,
         items: topCuts,
-        explanation:
-          "Aqui estão as assinaturas com maior impacto estimado no seu score se você cancelar agora.",
+        explanation: `Economia estimada: até R$ ${(topCuts[0].monthlySavingsCents / 100).toFixed(
+          2,
+        )}/mês (R$ ${(topCuts[0].yearlySavingsCents / 100).toFixed(2)}/ano).`,
       });
     }
-
-    return { ok: true, baseScore: base.score, suggestions };
   }
 
-  private format(
-    score: number,
-    drivers: Driver[],
-    ctx: {
-      income: number;
-      fixedTotal: number;
-      subsMonthly: number;
-      saldoReal: number;
-    },
-  ) {
-    const level = score >= 75 ? "GREEN" : score >= 50 ? "YELLOW" : "RED";
+  // Ordena (mantém o WOW no topo porque usamos unshift)
+  const first = suggestions[0]?.key === "pending_cancellations" ? suggestions.shift() : null;
 
-    return {
-      ok: true,
-      score: { value: score, level },
-      context: {
-        monthlyIncomeCents: ctx.income,
-        fixedExpensesCents: ctx.fixedTotal,
-        subscriptionsCents: ctx.subsMonthly,
-        saldoRealCents: ctx.saldoReal,
-      },
-      drivers,
-    };
-  }
+  suggestions.sort(
+    (a, b) =>
+      (b.estimatedScoreDelta ?? 0) - (a.estimatedScoreDelta ?? 0) ||
+      (b.items?.[0]?.amountCents ?? 0) - (a.items?.[0]?.amountCents ?? 0),
+  );
+
+  if (first) suggestions.unshift(first);
+
+  return {
+    ok: true,
+    baseScore: base.score,
+    suggestions,
+  };
+}
+
 }
