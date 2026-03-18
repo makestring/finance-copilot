@@ -26,7 +26,8 @@ export class DashboardService {
     const alerts = await this.alertsService.list(clientId, 20);
     const history = await this.historyService.list(clientId, 5);
 
-    const alertItems = alerts?.items ?? [];
+    const alertItems = alerts?.data?.items ?? [];
+    const unreadCount = alerts?.meta?.unreadCount ?? 0;
 
     const warningCount = alertItems.filter((a: any) => a.severity === "warning").length;
     const infoCount = alertItems.filter((a: any) => a.severity === "info").length;
@@ -104,13 +105,14 @@ export class DashboardService {
         yearlyFormatted: toBRL(yearlyPotentialCents),
       },
 
-      alertsSummary: {
-        total: alertItems.length,
-        warning: warningCount,
-        info: infoCount,
-        danger: dangerCount,
-        hasAlerts: alertItems.length > 0,
-      },
+alertsSummary: {
+  total: alertItems.length,
+  unread: unreadCount,
+  warning: warningCount,
+  info: infoCount,
+  danger: dangerCount,
+  hasAlerts: alertItems.length > 0,
+},
 
       topAction: topAction
         ? {

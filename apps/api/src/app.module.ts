@@ -11,9 +11,11 @@ import { InsightsModule } from './modules/insights/insights.module';
 import { ActionsModule } from "./modules/actions/actions.module";
 import { AlertsModule } from "./modules/alerts/alerts.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { JobsModule } from "./modules/jobs/jobs.module";
+import { ScheduleModule } from "@nestjs/schedule";
 
 
 @Module({
-  imports: [PrismaModule, OnboardingModule, SnapshotModule, SubscriptionsModule, LeaksModule, SettingsModule, ScoreModule, CancelIntentsModule, InsightsModule, ActionsModule, AlertsModule, DashboardModule],
+  imports: [PrismaModule, OnboardingModule, SnapshotModule, SubscriptionsModule, LeaksModule, SettingsModule, ScoreModule, CancelIntentsModule, InsightsModule, ActionsModule, AlertsModule, DashboardModule, JobsModule, ScheduleModule.forRoot()],
 })
 export class AppModule {}

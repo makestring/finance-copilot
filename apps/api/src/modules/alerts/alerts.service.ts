@@ -2,32 +2,116 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../shared/infrastructure/prisma/prisma.service";
 
 function toBRL(cents: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(cents / 100);
 }
 
 @Injectable()
 export class AlertsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(clientId: string, limit = 20) {
-    const items = await this.prisma.alert.findMany({
-      where: { clientId, isActive: true },
-      orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
-      take: Math.min(100, Math.max(1, limit)),
+ async list(clientId: string, limit = 20) {
+  const items = await this.prisma.alert.findMany({
+    where: { clientId, isActive: true },
+    orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
+    take: Math.min(100, Math.max(1, limit)),
+  });
+
+  const unreadCount = await this.prisma.alert.count({
+    where: {
+      clientId,
+      isActive: true,
+      isRead: false,
+    },
+  });
+
+  return {
+    ok: true,
+    data: {
+      items,
+    },
+    meta: {
+      unreadCount,
+    },
+  };
+}
+
+  async unreadCount(clientId: string) {
+    const count = await this.prisma.alert.count({
+      where: {
+        clientId,
+        isActive: true,
+        isRead: false,
+      },
     });
 
-    return { ok: true, items };
+    return { ok: true, count };
+  }
+
+  async markRead(clientId: string, alertId: string) {
+    const alert = await this.prisma.alert.findFirst({
+      where: {
+        id: alertId,
+        clientId,
+        isActive: true,
+      },
+    });
+
+    if (!alert) {
+      throw new NotFoundException("Alert not found");
+    }
+
+    const updated = await this.prisma.alert.update({
+      where: { id: alertId },
+      data: {
+        isRead: true,
+        readAt: new Date(),
+      },
+    });
+
+    return { ok: true, alert: updated };
+  }
+
+  async dismiss(clientId: string, alertId: string) {
+    const alert = await this.prisma.alert.findFirst({
+      where: {
+        id: alertId,
+        clientId,
+        isActive: true,
+      },
+    });
+
+    if (!alert) {
+      throw new NotFoundException("Alert not found");
+    }
+
+    const updated = await this.prisma.alert.update({
+      where: { id: alertId },
+      data: {
+        isActive: false,
+        dismissedAt: new Date(),
+      },
+    });
+
+    return { ok: true, alert: updated };
   }
 
   async recompute(clientId: string) {
-    // precisa do profile
     const profile = await this.prisma.financialProfile.findUnique({
       where: { clientId },
       include: { fixedExpenses: true },
     });
-    if (!profile) throw new NotFoundException("Profile not found. POST /onboarding/profile first.");
 
-    const settings = await this.prisma.userSettings.findUnique({ where: { clientId } });
+    if (!profile) {
+      throw new NotFoundException("Profile not found. POST /onboarding/profile first.");
+    }
+
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { clientId },
+    });
+
     const thresholdPct = settings?.subscriptionsThresholdPct ?? 10;
     const upcomingDays = settings?.upcomingBillingWindowDays ?? 5;
 
@@ -44,25 +128,29 @@ export class AlertsService {
     const ratio = saldoReal > 0 ? subsMonthly / saldoReal : 1;
     const thresholdRatio = thresholdPct / 100;
 
-    // estratégia MVP: desativar alertas antigos do “tipo” e inserir novos
     const toCreate: any[] = [];
 
     // 1) HIGH_SUBSCRIPTION_WEIGHT
     if (ratio > thresholdRatio) {
       const pctUsed = (ratio * 100).toFixed(1);
+
       toCreate.push({
         clientId,
         type: "HIGH_SUBSCRIPTION_WEIGHT",
         severity: "warning",
         title: "Assinaturas acima do seu limite",
         message: `Assinaturas consomem ${pctUsed}% do seu saldo real (limite: ${thresholdPct}%).`,
-        payload: { ratio, thresholdPct, subsMonthlyCents: subsMonthly, saldoRealCents: saldoReal },
+        payload: {
+          ratio,
+          thresholdPct,
+          subsMonthlyCents: subsMonthly,
+          saldoRealCents: saldoReal,
+        },
       });
     }
 
     // 2) UPCOMING_BILLING
-    const today = new Date();
-    const todayDay = today.getDate();
+    const todayDay = new Date().getDate();
 
     const upcoming = subs
       .map((s) => ({ ...s, diff: s.billingDay - todayDay }))
@@ -71,6 +159,7 @@ export class AlertsService {
 
     if (upcoming.length > 0) {
       const totalUpcoming = upcoming.reduce((acc, s) => acc + s.amountCents, 0);
+
       toCreate.push({
         clientId,
         type: "UPCOMING_BILLING",
@@ -92,16 +181,28 @@ export class AlertsService {
 
     // desativa alertas antigos desses tipos
     const types = ["HIGH_SUBSCRIPTION_WEIGHT", "UPCOMING_BILLING"];
+
     await this.prisma.alert.updateMany({
-      where: { clientId, type: { in: types }, isActive: true },
-      data: { isActive: false },
+      where: {
+        clientId,
+        type: { in: types },
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+        dismissedAt: new Date(),
+      },
     });
 
-      const created: any[] = [];
-      for (const data of toCreate) {
+    const created: any[] = [];
+    for (const data of toCreate) {
       created.push(await this.prisma.alert.create({ data }));
-      }
+    }
 
-return { ok: true, createdCount: created.length, created };
+    return {
+      ok: true,
+      createdCount: created.length,
+      created,
+    };
   }
 }

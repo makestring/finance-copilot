@@ -123,12 +123,15 @@ model Alert {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clientId String
-  type     String
-  severity String // "info" | "warning" | "danger"
-  title    String
-  message  String
-  isActive Boolean @default(true)
+  clientId    String
+  type        String
+  severity    String // "info" | "warning" | "danger"
+  title       String
+  message     String
+  isActive    Boolean   @default(true)
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  dismissedAt DateTime?
 
   // opcional: para guardar itens (ex: lista de assinaturas) ou metadados
   payload Json?
