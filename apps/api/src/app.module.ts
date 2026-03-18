@@ -10,9 +10,10 @@ import { CancelIntentsModule } from './modules/cancel-intents/cancel-intents.mod
 import { InsightsModule } from './modules/insights/insights.module';
 import { ActionsModule } from "./modules/actions/actions.module";
 import { AlertsModule } from "./modules/alerts/alerts.module";
+import { DashboardModule } from "./modules/dashboard/dashboard.module";
 
 
 @Module({
-  imports: [PrismaModule, OnboardingModule, SnapshotModule, SubscriptionsModule, LeaksModule, SettingsModule, ScoreModule, CancelIntentsModule, InsightsModule, ActionsModule, AlertsModule],
+  imports: [PrismaModule, OnboardingModule, SnapshotModule, SubscriptionsModule, LeaksModule, SettingsModule, ScoreModule, CancelIntentsModule, InsightsModule, ActionsModule, AlertsModule, DashboardModule],
 })
 export class AppModule {}
