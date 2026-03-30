@@ -33,13 +33,21 @@ export class ActionHistoryService {
     });
   }
 
-  async list(clientId: string, limit = 20) {
-    const items = await this.delegate.findMany({
-      where: { clientId },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    });
+    async list(clientId: string, limit = 20) {
+      const items = await this.delegate.findMany({
+        where: { clientId },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      });
 
-    return { ok: true, items };
+      return {
+        ok: true,
+        data: {
+          items,
+        },
+        meta: {
+          count: items.length,
+        },
+      };
   }
 }
