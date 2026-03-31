@@ -3,6 +3,7 @@ import { PrismaService } from "../../shared/infrastructure/prisma/prisma.service
 import { ScoreService } from "../score/score.service";
 import { InsightsService } from "../insights/insights.service";
 import { ActionHistoryService } from "./action-history.service";
+import { OutcomesService } from '../outcomes/outcomes.service';
 
 function toBRL(cents: number) {
   // formato pt-BR com vírgula; UI-ready
@@ -19,6 +20,7 @@ export class ActionsService {
     private readonly scoreService: ScoreService,
     private readonly insightsService: InsightsService,
     private readonly history: ActionHistoryService,
+    private readonly outcomesService: OutcomesService,
   ) {}
 
   async confirmCancelSubscription(clientId: string, subscriptionId: string) {
@@ -71,7 +73,7 @@ export class ActionsService {
     const scoreHeadline = `${scoreBefore} → ${scoreAfter} (${diff >= 0 ? "+" : ""}${diff})`;
 
     // 6) action log (AGORA as variáveis existem)
-    await this.history.log(clientId, "SUBSCRIPTION_CANCEL_CONFIRMED", {
+    const actionLog = await this.history.log(clientId, "SUBSCRIPTION_CANCEL_CONFIRMED", {
       subscriptionId,
       name: updated.name,
       amountCents: updated.amountCents,
@@ -82,6 +84,16 @@ export class ActionsService {
       savingsMonthlyCents,
       savingsYearlyCents,
       occurredAt: new Date().toISOString(),
+    });
+
+    const outcome = await this.outcomesService.createFromCancellation({
+      clientId,
+      actionLogId: actionLog?.id,
+      subscriptionId,
+      subscriptionName: updated.name,
+      amountCents: updated.amountCents,
+      scoreBefore,
+      expectedScoreDelta: diff > 0 ? diff : 0,
     });
 
     // 7) insights atualizados
@@ -99,6 +111,7 @@ export class ActionsService {
       savings: { monthlyCents: savingsMonthlyCents, yearlyCents: savingsYearlyCents },
       subscription: updated,
       scoreSnapshot: snapshot.snapshot,
+      outcome,
       insights,
     };
   }

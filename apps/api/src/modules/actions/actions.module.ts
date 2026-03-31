@@ -6,9 +6,10 @@ import { ScoreModule } from "../score/score.module";
 import { InsightsModule } from "../insights/insights.module";
 import { ActionHistoryService } from "./action-history.service";
 import { ActionHistoryController } from "./action-history.controller";
+import { OutcomesModule } from '../outcomes/outcomes.module';
 
 @Module({
-  imports: [PrismaModule, ScoreModule, InsightsModule],
+  imports: [OutcomesModule, PrismaModule, ScoreModule, InsightsModule],
   controllers: [ActionsController, ActionHistoryController],
   providers: [ActionsService, ActionHistoryService],
   exports: [ActionsService, ActionHistoryService],

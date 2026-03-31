@@ -16,6 +16,8 @@ model Client {
   settings       UserSettings?
   scoreSnapshots ScoreSnapshot[]
   cancelIntents  CancelIntent[]
+  actionLogs     ActionLog[]
+  outcomes       Outcome[]
 }
 
 model FinancialProfile {
@@ -25,8 +27,8 @@ model FinancialProfile {
   updatedAt DateTime @updatedAt
 
   monthlyIncomeCents Int
-  cardLimitCents     Int? // opcional no MVP
-  cardDueDay         Int? // opcional no MVP
+  cardLimitCents     Int?
+  cardDueDay         Int?
 
   fixedExpenses FixedExpense[]
 
@@ -54,7 +56,7 @@ model Subscription {
   clientId    String
   name        String
   amountCents Int
-  billingDay  Int // 1..31
+  billingDay  Int
   isActive    Boolean @default(true)
 
   client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -69,8 +71,8 @@ model UserSettings {
   updatedAt DateTime @updatedAt
 
   clientId                  String @unique
-  subscriptionsThresholdPct Int    @default(10) // 10 = 10%
-  upcomingBillingWindowDays Int    @default(5) // 5 dias
+  subscriptionsThresholdPct Int    @default(10)
+  upcomingBillingWindowDays Int    @default(5)
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
@@ -83,7 +85,6 @@ model ScoreSnapshot {
   score    Int
   level    String
 
-  // Guardar “por que” o score foi assim (útil p/ trend explicável)
   drivers Json
   context Json
 
@@ -115,6 +116,9 @@ model ActionLog {
   type     String
   payload  Json?
 
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  outcomes Outcome[]
+
   @@index([clientId, createdAt])
 }
 
@@ -125,7 +129,7 @@ model Alert {
 
   clientId    String
   type        String
-  severity    String // "info" | "warning" | "danger"
+  severity    String
   title       String
   message     String
   isActive    Boolean   @default(true)
@@ -133,9 +137,58 @@ model Alert {
   readAt      DateTime?
   dismissedAt DateTime?
 
-  // opcional: para guardar itens (ex: lista de assinaturas) ou metadados
   payload Json?
 
   @@index([clientId, isActive])
   @@index([clientId, type])
+}
+
+enum OutcomeStatus {
+  PENDING
+  MEASURED
+  PARTIAL
+  MISSED
+}
+
+enum OutcomeSourceType {
+  CONFIRM_CANCELLATION
+  MANUAL_ADJUSTMENT
+  ALERT_DISMISS
+  OTHER
+}
+
+model Outcome {
+  id                   String            @id @default(uuid())
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  clientId             String
+  actionLogId          String?
+
+  sourceType           OutcomeSourceType
+  sourceReferenceId    String?
+
+  title                String
+  description          String?
+
+  expectedScoreDelta   Int               @default(0)
+  actualScoreDelta     Int?
+
+  expectedSavingsCents Int               @default(0)
+  actualSavingsCents   Int?
+
+  baselineScore        Int?
+  measuredScore        Int?
+
+  status               OutcomeStatus     @default(PENDING)
+
+  expectedAt           DateTime?
+  measuredAt           DateTime?
+
+  client               Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  actionLog            ActionLog?        @relation(fields: [actionLogId], references: [id], onDelete: SetNull)
+
+  @@index([clientId, status])
+  @@index([clientId, createdAt])
+  @@index([actionLogId])
 }
