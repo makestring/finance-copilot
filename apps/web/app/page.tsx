@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { api, type DashboardOverview, type Subscription } from "../lib/api";
-
-function brl(cents: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-    cents / 100,
-  );
-}
+import { api, type DashboardOverview, type Subscription } from "@/lib/api";
+import { HeroCard } from "@/components/HeroCard";
+import { ScoreCard } from "@/components/ScoreCard";
+import { HighlightCard } from "@/components/HighlightCard";
+import { TopActionCard } from "@/components/TopActionCard";
+import { SubscriptionList } from "@/components/SubscriptionList";
 
 type Toast = { message: string; ok: boolean };
 
@@ -68,7 +67,7 @@ export default function Home() {
 
     if (action.kind === "api" && action.path) {
       try {
-        const result = await api["cancelSubscription"](
+        const result = await api.cancelSubscription(
           action.path.replace("/subscriptions/", "").replace("/confirm-cancel", ""),
         );
         showToast(result.toast, true);
@@ -79,138 +78,94 @@ export default function Home() {
     }
   }
 
-  if (error) {
-    return <div className="p-10 text-red-600">Erro: {error}</div>;
-  }
-
-  if (loading && !dashboard) {
-    return <div className="p-10 text-gray-500">Carregando...</div>;
-  }
-
+  const alertCount = dashboard?.alertsSummary?.unread ?? 0;
   const active = subscriptions.filter((s) => s.isActive);
   const cancelled = subscriptions.filter((s) => !s.isActive);
 
   return (
-    <div className="p-10 space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold">Finance Copilot</h1>
-
-      {dashboard && (
-        <>
-          <div className="bg-green-100 p-6 rounded-xl shadow">
-            <h2 className="text-lg text-gray-600">{dashboard.ui.hero.title}</h2>
-            <p className="text-3xl font-bold">{dashboard.ui.hero.headline}</p>
-            <p className="text-gray-500">{dashboard.ui.hero.subtitle}</p>
+    <>
+      {/* Fixed header */}
+      <header className="fixed top-0 inset-x-0 z-50 h-14 bg-white border-b border-gray-100 px-6 flex items-center justify-between">
+        <span className="font-bold text-gray-900 tracking-tight">Finance Copilot</span>
+        {alertCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Alertas</span>
+            <span
+              className="text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: "#e53e3e" }}
+            >
+              {alertCount > 9 ? "9+" : alertCount}
+            </span>
           </div>
+        )}
+      </header>
 
-          <div className="bg-white p-6 rounded-xl shadow border">
-            <p className="text-gray-500">Score</p>
-            <p className="text-3xl font-bold">{dashboard.score.value}</p>
-            <p className="text-gray-500">{dashboard.score.label}</p>
+      <main className="pt-14 min-h-screen bg-gray-50">
+        {error ? (
+          <div className="flex flex-col items-center justify-center h-[80vh] gap-3 text-center px-6">
+            <p className="text-5xl">⚠️</p>
+            <p className="text-gray-600 text-sm max-w-xs">{error}</p>
+            <button
+              onClick={loadAll}
+              className="text-sm px-5 py-2 rounded-xl bg-gray-900 text-white mt-2 hover:opacity-80 transition-opacity"
+            >
+              Tentar novamente
+            </button>
           </div>
-
-          <div className="bg-blue-100 p-6 rounded-xl shadow">
-            <p className="text-gray-600">{dashboard.ui.highlightCard.title}</p>
-            <p className="text-2xl font-bold">{dashboard.ui.highlightCard.value}</p>
-            <p className="text-gray-500">{dashboard.ui.highlightCard.subtitle}</p>
+        ) : loading && !dashboard ? (
+          <div className="flex items-center justify-center h-[80vh]">
+            <LoadingSpinner />
           </div>
-
-          {dashboard.topAction && (
-            <div className="bg-white p-6 rounded-xl shadow border">
-              <p className="text-gray-500 mb-2">Próxima melhor ação</p>
-              <p className="text-2xl font-bold">{dashboard.topAction.label}</p>
-
-              {dashboard.topAction.impactLabel && (
-                <p className="text-green-700 mt-2">{dashboard.topAction.impactLabel}</p>
-              )}
-
-              {dashboard.topAction.monthlySavingsFormatted && (
-                <p className="text-gray-600 mt-1">
-                  Economia: {dashboard.topAction.monthlySavingsFormatted}/mês
-                </p>
-              )}
-
-              {dashboard.topAction.performance && (
-                <div className="mt-4 text-sm text-gray-600">
-                  <p>Taxa de sucesso: {dashboard.topAction.performance.successRate}%</p>
-                  <p>Resultado já comprovado: {dashboard.topAction.performance.actualSavingsFormatted}</p>
-                </div>
-              )}
-
-              <button
-                onClick={handleTopAction}
-                className="mt-4 px-4 py-2 rounded-lg bg-black text-white"
-              >
-                {dashboard.topAction.ctaLabel}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      <div className="bg-white p-6 rounded-xl shadow border space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Assinaturas ativas</h2>
-          {loading && <span className="text-sm text-gray-400">Atualizando...</span>}
-        </div>
-
-        {active.length === 0 ? (
-          <p className="text-gray-400 text-sm">Nenhuma assinatura ativa.</p>
         ) : (
-          <ul className="space-y-3">
-            {active.map((sub) => (
-              <li key={sub.id} className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{sub.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {brl(sub.amountCents)}/mês · vence dia {sub.billingDay}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleCancel(sub)}
-                  disabled={cancelling === sub.id}
-                  className="text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {cancelling === sub.id ? "Cancelando..." : "Cancelar"}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+          <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+            {dashboard && (
+              <>
+                <HeroCard {...dashboard.ui.hero} />
+                <ScoreCard value={dashboard.score.value} label={dashboard.score.label} />
+                <HighlightCard {...dashboard.ui.highlightCard} />
+                {dashboard.topAction && (
+                  <TopActionCard topAction={dashboard.topAction} onAction={handleTopAction} />
+                )}
+              </>
+            )}
 
-        {cancelled.length > 0 && (
-          <>
-            <hr className="border-gray-100" />
-            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
-              Canceladas
-            </h3>
-            <ul className="space-y-2">
-              {cancelled.map((sub) => (
-                <li key={sub.id} className="flex items-center justify-between opacity-50">
-                  <div>
-                    <p className="font-medium line-through">{sub.name}</p>
-                    <p className="text-sm text-gray-400">
-                      {brl(sub.amountCents)}/mês · era dia {sub.billingDay}
-                    </p>
-                  </div>
-                  <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">
-                    Cancelada
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
+            <SubscriptionList
+              active={active}
+              cancelled={cancelled}
+              cancelling={cancelling}
+              onCancel={handleCancel}
+              loading={loading && !!dashboard}
+            />
+          </div>
         )}
-      </div>
+      </main>
 
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 max-w-sm px-5 py-3 rounded-xl shadow-lg text-white text-sm transition-all ${
-            toast.ok ? "bg-green-600" : "bg-red-600"
-          }`}
+          className="fixed bottom-6 right-6 z-50 max-w-sm px-5 py-3 rounded-xl shadow-lg text-white text-sm"
+          style={{ backgroundColor: toast.ok ? "#00c97a" : "#e53e3e" }}
         >
           {toast.message}
         </div>
       )}
+    </>
+  );
+}
+
+function LoadingSpinner() {
+  return (
+    <div className="flex flex-col items-center gap-4">
+      <svg width="44" height="44" viewBox="0 0 44 44" className="animate-spin">
+        <circle cx="22" cy="22" r="18" fill="none" stroke="#e5e7eb" strokeWidth="4" />
+        <path
+          d="M22 4a18 18 0 0 1 18 18"
+          fill="none"
+          stroke="#00c97a"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+      </svg>
+      <p className="text-sm text-gray-400">Carregando seu painel…</p>
     </div>
   );
 }

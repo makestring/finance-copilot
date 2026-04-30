@@ -41,6 +41,7 @@ export type DashboardOverview = {
     performance?: { successRate: number; actualSavingsFormatted: string };
     action?: { kind: "navigate" | "api"; screen?: string; path?: string; method?: string };
   };
+  alertsSummary?: { unread: number };
 };
 
 export type SubscriptionsResponse = {
