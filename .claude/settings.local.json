@@ -4,7 +4,8 @@
       "Bash(npx tsc *)",
       "Bash(git -C /Users/marcoskestring/finance-copilot status)",
       "Bash(git -C /Users/marcoskestring/finance-copilot diff --stat HEAD)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(pnpm --filter ./apps/web add @supabase/supabase-js)"
     ]
   }
 }

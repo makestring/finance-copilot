@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, type DashboardOverview, type Subscription } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { HeroCard } from "@/components/HeroCard";
 import { ScoreCard } from "@/components/ScoreCard";
 import { HighlightCard } from "@/components/HighlightCard";
@@ -13,6 +14,7 @@ type Toast = { message: string; ok: boolean };
 
 export default function Home() {
   const router = useRouter();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardOverview | null>(null);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,9 @@ export default function Home() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserEmail(session?.user?.email ?? null);
+    });
     loadAll();
   }, []);
 
@@ -47,6 +52,11 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/login");
   }
 
   async function handleCancel(sub: Subscription) {
@@ -93,17 +103,28 @@ export default function Home() {
       {/* Fixed header */}
       <header className="fixed top-0 inset-x-0 z-50 h-14 bg-white border-b border-gray-100 px-6 flex items-center justify-between">
         <span className="font-bold text-gray-900 tracking-tight">Finance Copilot</span>
-        {alertCount > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Alertas</span>
-            <span
-              className="text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: "#e53e3e" }}
-            >
-              {alertCount > 9 ? "9+" : alertCount}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {alertCount > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Alertas</span>
+              <span
+                className="text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: "#e53e3e" }}
+              >
+                {alertCount > 9 ? "9+" : alertCount}
+              </span>
+            </div>
+          )}
+          {userEmail && (
+            <span className="text-xs text-gray-400 hidden sm:block">{userEmail}</span>
+          )}
+          <button
+            onClick={handleLogout}
+            className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            Sair
+          </button>
+        </div>
       </header>
 
       <main className="pt-14 min-h-screen bg-gray-50">

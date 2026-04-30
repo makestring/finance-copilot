@@ -1,15 +1,23 @@
+import { supabase } from "./supabase";
+
 const BASE_URL = "http://localhost:3000";
-const CLIENT_ID = "11111111-1111-1111-1111-111111111111";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      "x-client-id": CLIENT_ID,
-      ...(init?.headers ?? {}),
-    },
-  });
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+
+  if (session) {
+    headers["x-client-id"] = session.user.id;
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
 
   if (!res.ok) {
     const text = await res.text();
