@@ -240,7 +240,7 @@ function AmountInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-emerald-400 transition-colors"
+        className="w-full pl-11 pr-4 py-3 rounded-lg border border-[#d1d5db] bg-white text-[#1a1a2e] text-sm placeholder:text-[#9ca3af] outline-none focus:border-[#00c97a] transition-colors"
       />
     </div>
   );
@@ -382,7 +382,7 @@ function StepExpenses({
                 value={exp.name}
                 onChange={(e) => onUpdate(exp.id, "name", e.target.value)}
                 placeholder="Nome do gasto"
-                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-emerald-400 transition-colors"
+                className="flex-1 px-4 py-3 rounded-lg border border-[#d1d5db] bg-white text-[#1a1a2e] text-sm placeholder:text-[#9ca3af] outline-none focus:border-[#00c97a] transition-colors"
               />
               <AmountInput
                 value={exp.amount}
@@ -461,7 +461,7 @@ function StepSubscriptions({
                   value={sub.name}
                   onChange={(e) => onUpdate(sub.id, "name", e.target.value)}
                   placeholder="Nome"
-                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-emerald-400 transition-colors"
+                  className="flex-1 px-4 py-3 rounded-lg border border-[#d1d5db] bg-white text-[#1a1a2e] text-sm placeholder:text-[#9ca3af] outline-none focus:border-[#00c97a] transition-colors"
                 />
                 <AmountInput
                   value={sub.amount}
@@ -476,7 +476,7 @@ function StepSubscriptions({
                   onChange={(e) => onUpdate(sub.id, "billingDay", e.target.value)}
                   placeholder="Dia"
                   title="Dia de vencimento (1-31)"
-                  className="w-16 px-3 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-emerald-400 transition-colors text-center"
+                  className="w-16 px-3 py-3 rounded-lg border border-[#d1d5db] bg-white text-[#1a1a2e] text-sm placeholder:text-[#9ca3af] outline-none focus:border-[#00c97a] transition-colors text-center"
                 />
                 <button
                   onClick={() => onRemove(sub.id)}

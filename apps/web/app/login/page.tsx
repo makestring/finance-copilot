@@ -84,7 +84,7 @@ export default function LoginPage() {
                   placeholder="seu@email.com"
                   required
                   autoComplete="email"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-emerald-400 transition-colors"
+                  className="w-full px-4 py-3 rounded-lg border border-[#d1d5db] bg-white text-[#1a1a2e] text-sm placeholder:text-[#9ca3af] outline-none focus:border-[#00c97a] transition-colors"
                 />
               </div>
 
@@ -100,7 +100,7 @@ export default function LoginPage() {
                   required
                   minLength={6}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-emerald-400 transition-colors"
+                  className="w-full px-4 py-3 rounded-lg border border-[#d1d5db] bg-white text-[#1a1a2e] text-sm placeholder:text-[#9ca3af] outline-none focus:border-[#00c97a] transition-colors"
                 />
               </div>
 
