@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, type DashboardOverview, type Subscription } from "@/lib/api";
 import { HeroCard } from "@/components/HeroCard";
 import { ScoreCard } from "@/components/ScoreCard";
@@ -11,6 +12,7 @@ import { SubscriptionList } from "@/components/SubscriptionList";
 type Toast = { message: string; ok: boolean };
 
 export default function Home() {
+  const router = useRouter();
   const [dashboard, setDashboard] = useState<DashboardOverview | null>(null);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,10 @@ export default function Home() {
       setDashboard(dash);
       setSubscriptions(subs.subscriptions);
     } catch (err: any) {
+      if (err.message?.startsWith("HTTP 404")) {
+        router.push("/onboarding");
+        return;
+      }
       setError(err.message);
     } finally {
       setLoading(false);

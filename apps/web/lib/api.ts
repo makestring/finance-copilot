@@ -62,6 +62,11 @@ export type CancelResponse = {
   savings: { monthlyCents: number; yearlyCents: number };
 };
 
+export type ScoreResponse = {
+  ok: boolean;
+  score: { value: number; level: string };
+};
+
 export const api = {
   getDashboard: () => apiFetch<DashboardOverview>("/dashboard/overview"),
 
@@ -70,5 +75,22 @@ export const api = {
   cancelSubscription: (subscriptionId: string) =>
     apiFetch<CancelResponse>(`/subscriptions/${subscriptionId}/confirm-cancel`, {
       method: "POST",
+    }),
+
+  getScore: () => apiFetch<ScoreResponse>("/score/monthly"),
+
+  postOnboardingProfile: (data: {
+    monthlyIncomeCents: number;
+    fixedExpenses: { name: string; amountCents: number }[];
+  }) =>
+    apiFetch<{ ok: boolean }>("/onboarding/profile", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  createSubscription: (data: { name: string; amountCents: number; billingDay: number }) =>
+    apiFetch<{ ok: boolean }>("/subscriptions", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 };
