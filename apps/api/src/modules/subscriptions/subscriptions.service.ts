@@ -34,20 +34,21 @@ export class SubscriptionsService {
 
   async listWithSummary(clientId: string) {
     const subscriptions = await this.prisma.subscription.findMany({
-      where: { clientId, isActive: true },
-      orderBy: [{ amountCents: "desc" }, { name: "asc" }],
+      where: { clientId },
+      orderBy: [{ isActive: "desc" }, { amountCents: "desc" }, { name: "asc" }],
     });
 
-    const monthlyTotal = subscriptions.reduce((s, x) => s + x.amountCents, 0);
+    const active = subscriptions.filter((s) => s.isActive);
+    const monthlyTotal = active.reduce((s, x) => s + x.amountCents, 0);
 
     return {
       ok: true,
       subscriptions,
       summary: {
-        count: subscriptions.length,
+        count: active.length,
         monthlyTotalCents: monthlyTotal,
         yearlyTotalCents: monthlyTotal * 12,
-        top3: subscriptions.slice(0, 3).map((s) => ({ name: s.name, amountCents: s.amountCents })),
+        top3: active.slice(0, 3).map((s) => ({ name: s.name, amountCents: s.amountCents })),
       },
     };
   }

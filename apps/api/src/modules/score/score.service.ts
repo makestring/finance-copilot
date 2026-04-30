@@ -276,6 +276,7 @@ const uniqueSubs = Array.from(uniqueSubsMap.values());
         const delta = newScore - base.score.value;
 
         return {
+          subscriptionId: s.id,
           name: s.name,
           amountCents: s.amountCents,
           monthlySavingsCents: s.amountCents,
