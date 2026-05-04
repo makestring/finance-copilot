@@ -10,6 +10,7 @@ import { HighlightCard } from "@/components/HighlightCard";
 import { TopActionCard } from "@/components/TopActionCard";
 import { AllClearCard } from "@/components/AllClearCard";
 import { SubscriptionList } from "@/components/SubscriptionList";
+import { FixedExpensesSummaryCard } from "@/components/FixedExpensesSummaryCard";
 
 type Toast = { message: string; ok: boolean };
 
@@ -71,6 +72,12 @@ export default function Home() {
     } finally {
       setCancelling(null);
     }
+  }
+
+  async function handleAddSubscription(data: { name: string; amountCents: number; billingDay: number }) {
+    await api.createSubscription(data);
+    await loadAll();
+    showToast(`${data.name} adicionada com sucesso!`, true);
   }
 
   async function handleTopAction() {
@@ -164,8 +171,11 @@ export default function Home() {
               cancelled={cancelled}
               cancelling={cancelling}
               onCancel={handleCancel}
+              onAddSubscription={handleAddSubscription}
               loading={loading && !!dashboard}
             />
+
+            <FixedExpensesSummaryCard />
           </div>
         )}
       </main>

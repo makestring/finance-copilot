@@ -75,6 +75,17 @@ export type ScoreResponse = {
   score: { value: number; level: string };
 };
 
+export type ProfileResponse = {
+  ok: boolean;
+  profile: {
+    clientId: string;
+    monthlyIncomeCents: number;
+    cardLimitCents: number | null;
+    cardDueDay: number | null;
+    fixedExpenses: { id: string; name: string; amountCents: number }[];
+  };
+};
+
 export const api = {
   getDashboard: () => apiFetch<DashboardOverview>("/dashboard/overview"),
 
@@ -101,4 +112,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  getProfile: () => apiFetch<ProfileResponse>("/onboarding/profile"),
 };
