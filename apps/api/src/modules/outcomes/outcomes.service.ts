@@ -53,6 +53,7 @@ export class OutcomesService {
       where: {
         clientId,
         status: OutcomeStatus.PENDING,
+        expectedAt: { lte: new Date() },
       },
       orderBy: {
         createdAt: 'asc',

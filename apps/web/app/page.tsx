@@ -8,6 +8,7 @@ import { HeroCard } from "@/components/HeroCard";
 import { ScoreCard } from "@/components/ScoreCard";
 import { HighlightCard } from "@/components/HighlightCard";
 import { TopActionCard } from "@/components/TopActionCard";
+import { AllClearCard } from "@/components/AllClearCard";
 import { SubscriptionList } from "@/components/SubscriptionList";
 
 type Toast = { message: string; ok: boolean };
@@ -150,8 +151,10 @@ export default function Home() {
                 <HeroCard {...dashboard.ui.hero} />
                 <ScoreCard value={dashboard.score.value} label={dashboard.score.label} />
                 <HighlightCard {...dashboard.ui.highlightCard} />
-                {dashboard.topAction && (
+                {dashboard.topAction ? (
                   <TopActionCard topAction={dashboard.topAction} onAction={handleTopAction} />
+                ) : (
+                  <AllClearCard score={dashboard.score.value} />
                 )}
               </>
             )}

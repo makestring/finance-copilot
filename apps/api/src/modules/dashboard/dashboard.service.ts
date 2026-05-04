@@ -93,9 +93,34 @@ export class DashboardService {
     const monthlyPotentialCents = insights?.summary?.monthlySavingsCents ?? 0;
     const yearlyPotentialCents = insights?.summary?.yearlySavingsCents ?? 0;
 
+    // Prioridade 1: cancel intents pendentes não confirmados
+    const cancelIntents = await this.prisma.cancelIntent.findMany({
+      where: { clientId },
+      include: { subscription: { select: { id: true, name: true, amountCents: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+    });
+
     let topAction: any = null;
 
-    if (topSuggestion) {
+    if (cancelIntents.length > 0) {
+      const intent = cancelIntents[0];
+      topAction = {
+        type: "CONFIRM_CANCELLATION",
+        label: `Confirmar cancelamento de ${intent.subscription.name}`,
+        impactLabel: `Economia de ${toBRL(intent.subscription.amountCents)}/mês`,
+        monthlySavingsFormatted: toBRL(intent.subscription.amountCents),
+        ctaLabel: "Confirmar cancelamento",
+        action: {
+          kind: "api",
+          method: "POST",
+          path: `/subscriptions/${intent.subscription.id}/confirm-cancel`,
+        },
+      };
+    }
+
+    // Prioridade 2: sugestões com maior impacto no score
+    if (!topAction && topSuggestion) {
       if (topSuggestion.key === "cut_one_subscription" && topSuggestion.items?.length > 0) {
         const item = topSuggestion.items[0];
         const matchingSub = await this.findActiveSubscriptionByName(clientId, item.name);
@@ -108,15 +133,8 @@ export class DashboardService {
           monthlySavingsFormatted: toBRL(item.monthlySavingsCents ?? 0),
           ctaLabel: "Resolver agora",
           action: matchingSub
-            ? {
-                kind: "api",
-                method: "POST",
-                path: `/subscriptions/${matchingSub.id}/confirm-cancel`,
-              }
-            : {
-                kind: "navigate",
-                screen: "subscriptions",
-              },
+            ? { kind: "api", method: "POST", path: `/subscriptions/${matchingSub.id}/confirm-cancel` }
+            : { kind: "navigate", screen: "subscriptions" },
         };
       } else if (topSuggestion.key === "adjust_threshold") {
         topAction = {
@@ -124,44 +142,32 @@ export class DashboardService {
           label: "Ajustar limite de assinaturas",
           impactLabel: `+${topSuggestion.estimatedScoreDelta} pontos`,
           ctaLabel: "Revisar configuração",
-          action: {
-            kind: "navigate",
-            screen: "settings/subscriptions-threshold",
-          },
+          action: { kind: "navigate", screen: "settings/subscriptions-threshold" },
         };
       }
     }
 
     if (!topAction && insights?.topAction) {
-      topAction = {
-        ...insights.topAction,
-        ctaLabel: "Resolver agora",
-      };
+      topAction = { ...insights.topAction, ctaLabel: "Resolver agora" };
     }
 
+    // Prioridades 3-5: alertas ordenados por severidade (danger > warning > info)
     if (!topAction && alertItems.length > 0) {
-      const first = alertItems[0];
+      const dangerAlert = alertItems.find((a: any) => a.severity === "danger");
+      const warningAlert = alertItems.find((a: any) => a.severity === "warning");
+      const infoAlert = alertItems.find((a: any) => a.severity === "info");
+      const priorityAlert = dangerAlert ?? warningAlert ?? infoAlert;
 
-      if (first.type === "UPCOMING_BILLING") {
-        const payload = first?.payload as any;
+      if (priorityAlert?.type === "UPCOMING_BILLING") {
+        const payload = priorityAlert?.payload as any;
         const firstItem = payload?.items?.[0];
-
         topAction = firstItem
-          ? {
-              type: "VIEW_UPCOMING_BILLING",
-              label: `Revisar cobrança do ${firstItem.name}`,
-              subscriptionId: firstItem.subscriptionId,
-              ctaLabel: "Resolver agora",
-            }
-          : {
-              type: "VIEW_ALERTS",
-              label: "Ver alertas",
-              ctaLabel: "Resolver agora",
-            };
-      } else {
+          ? { type: "VIEW_UPCOMING_BILLING", label: `Revisar cobrança do ${firstItem.name}`, subscriptionId: firstItem.subscriptionId, ctaLabel: "Resolver agora" }
+          : { type: "VIEW_ALERTS", label: "Ver alertas", ctaLabel: "Resolver agora" };
+      } else if (priorityAlert) {
         topAction = {
           type: "VIEW_ALERTS",
-          label: "Ver alertas",
+          label: priorityAlert.title ?? "Ver alertas",
           ctaLabel: "Resolver agora",
         };
       }

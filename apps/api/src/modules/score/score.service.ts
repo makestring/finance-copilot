@@ -64,7 +64,28 @@ export class ScoreService {
   }
 
   async createSnapshot(clientId: string) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const existing = await this.prisma.scoreSnapshot.findFirst({
+      where: { clientId, createdAt: { gte: todayStart } },
+      orderBy: { createdAt: "desc" },
+    });
+
     const result = await this.getMonthlyScore(clientId);
+
+    if (existing) {
+      const snapshot = await this.prisma.scoreSnapshot.update({
+        where: { id: existing.id },
+        data: {
+          score: result.score.value,
+          level: result.score.level,
+          drivers: result.drivers as any,
+          context: result.context as any,
+        },
+      });
+      return { ok: true, snapshot };
+    }
 
     const snapshot = await this.prisma.scoreSnapshot.create({
       data: {

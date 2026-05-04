@@ -179,23 +179,30 @@ export class AlertsService {
       });
     }
 
-    // desativa alertas antigos desses tipos
     const types = ["HIGH_SUBSCRIPTION_WEIGHT", "UPCOMING_BILLING"];
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    await this.prisma.alert.updateMany({
-      where: {
-        clientId,
-        type: { in: types },
-        isActive: true,
-      },
-      data: {
-        isActive: false,
-        dismissedAt: new Date(),
-      },
+    // Alertas recentes (< 24h) ainda ativos — não serão recriados
+    const recentAlerts = await this.prisma.alert.findMany({
+      where: { clientId, type: { in: types }, isActive: true, createdAt: { gte: since24h } },
+      select: { type: true },
     });
+    const recentTypes = new Set(recentAlerts.map((a) => a.type));
 
+    // Desativa apenas alertas cujas condições deixaram de ser válidas
+    const toCreateTypes = new Set(toCreate.map((c: any) => c.type));
+    const typesToDeactivate = types.filter((t) => !toCreateTypes.has(t));
+    if (typesToDeactivate.length > 0) {
+      await this.prisma.alert.updateMany({
+        where: { clientId, type: { in: typesToDeactivate }, isActive: true },
+        data: { isActive: false, dismissedAt: new Date() },
+      });
+    }
+
+    // Cria apenas se não existe duplicata recente (cooldown 24h)
     const created: any[] = [];
     for (const data of toCreate) {
+      if (recentTypes.has(data.type)) continue;
       created.push(await this.prisma.alert.create({ data }));
     }
 

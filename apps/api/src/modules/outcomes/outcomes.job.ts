@@ -18,15 +18,19 @@ export class OutcomesJob {
     this.logger.log('Starting outcomes recompute job...');
 
     const clientsWithPending = await this.prisma.outcome.findMany({
-      where: { status: 'PENDING' },
+      where: { status: 'PENDING', expectedAt: { lte: new Date() } },
       select: { clientId: true },
       distinct: ['clientId'],
     });
 
+    let totalProcessed = 0;
+
     for (const client of clientsWithPending) {
       try {
-        await this.outcomesService.recompute(client.clientId);
-        this.logger.log(`Recomputed outcomes for client ${client.clientId}`);
+        const result = await this.outcomesService.recompute(client.clientId);
+        const count = result.meta.processed;
+        totalProcessed += count;
+        this.logger.log(`Client ${client.clientId}: ${count} outcome(s) processed`);
       } catch (error) {
         this.logger.error(
           `Error recomputing outcomes for client ${client.clientId}`,
@@ -35,6 +39,6 @@ export class OutcomesJob {
       }
     }
 
-    this.logger.log('Outcomes recompute job finished.');
+    this.logger.log(`Outcomes recompute job finished. Total processed: ${totalProcessed}`);
   }
 }
