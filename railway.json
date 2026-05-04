@@ -5,7 +5,7 @@
     "buildCommand": "cd apps/api && npm install -g pnpm && pnpm install && pnpm run build"
   },
   "deploy": {
-    "startCommand": "cd apps/api && node dist/main",
+    "startCommand": "node apps/api/dist/main",
     "rootDirectory": "apps/api"
   }
 }
