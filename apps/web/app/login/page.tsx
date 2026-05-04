@@ -128,7 +128,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="mt-6 text-center border-t border-gray-100 pt-5">
+            <div className="mt-6 text-center border-t border-gray-100 pt-5 space-y-3">
               <p className="text-sm text-gray-500">
                 {mode === "login" ? "Não tem conta? " : "Já tem conta? "}
                 <button
@@ -139,6 +139,14 @@ export default function LoginPage() {
                 >
                   {mode === "login" ? "Criar conta" : "Entrar"}
                 </button>
+              </p>
+              <p>
+                <a
+                  href="/landing"
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ← Voltar para a página inicial
+                </a>
               </p>
             </div>
           </div>
