@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const {
