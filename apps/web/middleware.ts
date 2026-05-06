@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const SESSION_COOKIE = "sb-session";
-
 const PUBLIC_PATHS = ["/login", "/landing", "/auth/confirm"];
 
 export function middleware(request: NextRequest) {
@@ -12,7 +10,10 @@ export function middleware(request: NextRequest) {
     (p) => pathname === p || pathname.startsWith(p + "/"),
   );
 
-  const hasSession = request.cookies.has(SESSION_COOKIE);
+  // Verifica qualquer cookie do Supabase (sb-*)
+  const hasSession = request.cookies.getAll().some(
+    (cookie) => cookie.name.startsWith("sb-") && cookie.value.length > 0
+  );
 
   if (isPublic) {
     if (pathname === "/login" && hasSession) {
