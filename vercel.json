@@ -1,6 +1,0 @@
-{
-  "installCommand": "cd apps/web && npx pnpm@10.29.3 install --no-frozen-lockfile",
-  "buildCommand": "cd apps/web && npx pnpm@10.29.3 run build",
-  "outputDirectory": "apps/web/.next",
-  "framework": "nextjs"
-}
