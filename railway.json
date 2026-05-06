@@ -5,7 +5,7 @@
     "buildCommand": "npx pnpm install --filter api... && npx pnpm run build"
   },
   "deploy": {
-    "startCommand": "node apps/api/dist/main",
+    "startCommand": "node dist/main",
     "restartPolicyType": "ON_FAILURE"
   }
 }
