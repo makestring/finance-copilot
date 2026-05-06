@@ -1,13 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "apps/web/package.json",
-      "use": "@vercel/next",
-      "config": {
-        "buildCommand": "pnpm run build",
-        "installCommand": "pnpm install --no-frozen-lockfile"
-      }
-    }
-  ]
+  "installCommand": "cd apps/web && npx pnpm@10.29.3 install --no-frozen-lockfile",
+  "buildCommand": "cd apps/web && npx pnpm@10.29.3 run build",
+  "outputDirectory": "apps/web/.next",
+  "framework": "nextjs"
 }
