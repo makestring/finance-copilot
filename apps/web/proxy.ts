@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/landing", "/auth/confirm"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublic = PUBLIC_PATHS.some(
@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
 
   // Verifica qualquer cookie do Supabase (sb-*)
   const hasSession = request.cookies.getAll().some(
-    (cookie) => cookie.name.startsWith("sb-") && cookie.value.length > 0
+    (cookie) => cookie.name.startsWith("sb-") && cookie.value.length > 0,
   );
 
   if (isPublic) {
