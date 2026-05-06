@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd apps/web && npx pnpm@10.29.3 install && npx pnpm@10.29.3 run build",
+  "buildCommand": "cd apps/web && npx pnpm@10.29.3 install --no-frozen-lockfile && npx pnpm@10.29.3 run build",
   "outputDirectory": "apps/web/.next",
-  "installCommand": "echo 'skip root install'"
+  "installCommand": "echo 'skip'"
 }
