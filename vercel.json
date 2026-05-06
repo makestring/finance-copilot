@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd apps/web && pnpm install && pnpm build",
+  "buildCommand": "cd apps/web && npx pnpm@10.29.3 install && npx pnpm@10.29.3 run build",
   "outputDirectory": "apps/web/.next",
-  "installCommand": "pnpm install --filter web..."
+  "installCommand": "echo 'skip root install'"
 }
